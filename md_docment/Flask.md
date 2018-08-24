@@ -392,7 +392,7 @@ for循环
 
 然后我们创建一个子模板：
 
-```
+```html
 {% extends 'base.html' %}
 
 {% block title %}
@@ -454,4 +454,72 @@ def test():
 </body>
 </html>
 ```
+
+### Flask-bootstrap的使用
+
+bootstrap是Twitter开发的一个开源框架，它可以简单快速的创建简洁有吸引力的页面。详细了解请自行搜索了解。
+
+这里我们使用Flask-bootstrap这个Flask扩展，使用pip安装即可：
+
+```
+(venv) $ pip install flask-bootstrap
+```
+
+然后我们在程序创建后初始化一下这个扩展：
+
+```python
+from flask import Flask, render_template
+from flask_bootstrap import Bootstrap
+
+app = Flask(__name__, template_folder='templates')
+# 这里初始化bootstrap，并传入程序实例
+bootstrap = Bootstrap(app)
+```
+
+再新建一个user.html文件：
+
+```html
+{% extends "bootstrap/base.html" %}
+{% block title %}Flasky{% endblock %}
+{% block navbar %}
+    <div class="navbar navbar-inverse" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle"
+                        data-toggle="collapse" data-target=".navbar-collapse">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Flasky</a>
+            </div>
+            <div class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li><a href="/">Home</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h1>Hello, {{ name }}!</h1>
+        </div>
+    </div>
+{% endblock %}
+```
+
+在app.py中返回这个页面：
+
+```python
+@app.route('/home/<name>')
+def home(name):
+    return render_template('user.html', name=name)
+```
+
+打开浏览器访问，我们即可看到如下页面：
+
+![这里写图片描述](https://img-blog.csdn.net/2018082407561957?watermark/2/text/aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3p6enlwcA==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70)
 
