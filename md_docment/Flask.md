@@ -523,3 +523,17 @@ def home(name):
 
 ![这里写图片描述](https://img-blog.csdn.net/2018082407561957?watermark/2/text/aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3p6enlwcA==/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70)
 
+### 静态文件
+
+Flask默认的静态文件存放目录是程序根目录中名为static的目录，我们可以把*.css，js，图片等静态资源放到这个目录下即可，结构如下：
+
+```
+├── app.py
+├── LICENSE
+├── requirement.txt
+├── static
+├── templates
+└── venv
+```
+
+上图的static目录即是静态资源目录，venv是python虚拟环境，templates是模板文件目录。requirement.txt是python库的要求文件。
