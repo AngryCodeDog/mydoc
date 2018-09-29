@@ -537,3 +537,1028 @@ Flask默认的静态文件存放目录是程序根目录中名为static的目录
 ```
 
 上图的static目录即是静态资源目录，venv是python虚拟环境，templates是模板文件目录。requirement.txt是python库的要求文件。
+
+
+
+## 三、Flask web表单
+
+
+
+Flask可以直接生成一个web表单返回，并坐一些表单的验证和限制。
+
+Flask-WTF 能保护所有表单免受跨站请求伪造（Cross-Site Request Forgery， CSRF）的攻击。恶意网站把请求发送到被攻击者已登录的其他网站时就会引发 CSRF 攻击。  
+
+为了实现 CSRF 保护， Flask-WTF 需要程序设置一个密钥。 Flask-WTF 使用这个密钥生成 加密令牌，再用令牌验证请求中表单数据的真伪。  
+
+设置密钥的方式如下：
+
+```python
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'hard to guess string'
+```
+
+app.config是一个字典，可用来存储框架、扩展和程序本身的配置变量。  密钥要设置有难度的字符串。
+
+
+
+我们来个简单的例子，安装Flask-WTF，
+
+```
+pip install flask-wtf
+```
+
+然后创建一个LoginForm.py文件并写如下代码 ：
+
+```python
+# encoding=utf-8
+
+from flask_wtf import Form
+from wtforms import StringField, PasswordField, BooleanField, SubmitField
+from wtforms.validators import DataRequired, Length, Email
+
+class LoginForm(Form):
+    email = StringField('Email', validators=[DataRequired(), Length(1, 64),Email()])
+    password = PasswordField('Password', validators=[
+        DataRequired(), EqualTo('password2', message='Passwords must match.')])
+    password2 = PasswordField('Confirm password', validators=[DataRequired()])
+    remember_me = BooleanField('Keep me logged in')
+    submit = SubmitField('Log In')
+```
+password和password2两个设置了密码匹配验证，服务端需要写`form.validate_on_submit()`即可返回验证结果，界面也会相应提示，如果不写`form.validate_on_submit()`那就不会验证的。
+
+在程序入口文件app.py中写入如下内容：
+
+```python
+# encoding=utf-8
+
+from flask import Flask, render_template
+from flask_bootstrap import Bootstrap
+from forms.LoginForm import LoginForm
+
+app = Flask(__name__, template_folder='templates')
+bootstrap = Bootstrap(app)
+app.config['SECRET_KEY'] = 'hard to guess string'
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    # 这里要做验证，否则前端不会有提示的
+    if form.validate_on_submit():
+        return 'login succeed'
+    return render_template('auth/index.html', form=form)
+
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5001)
+
+```
+
+
+
+我们用flask-bootstrap创建一个父页面，坐一些基本的架子搭建：
+
+```html
+{% extends "bootstrap/base.html" %}
+{% block title %}Flasky{% endblock %}
+{% block navbar %}
+    <div class="navbar navbar-inverse" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle"
+                        data-toggle="collapse" data-target=".navbar-collapse">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="/">Flasky</a>
+            </div>
+            <div class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li><a href="/">Home</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block content %}
+    <div class="container">
+        <div class="page-header">
+            <h1>Hello, {{ name }}!</h1>
+        </div>
+    </div>
+{% endblock %}
+
+```
+
+最后我们新建一个login.html，我们使用最简单的表单渲染方式`{{ wtf.quick_form(form) }}`生成页面：
+
+```
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% block title %}Flasky - Login{% endblock %}
+{% block content %}
+    <div class="container">
+    <div class="page-header">
+        <h1>Login</h1>
+    </div>
+    <div class="col-md-4">
+        {{ wtf.quick_form(form) }}
+    </div>
+    </div>
+{% endblock %}
+```
+
+
+
+## 四、数据库
+
+
+
+这里我们来学习下python操作mysql。以下环境都是在Ubuntu 18.04当中。
+
+flask使用SQLAlchemy来操作mysql。
+
+### 安装
+
+首先我们要安装mysql-python
+
+```
+pip install mysql-python
+```
+
+如果出现如下错误：
+
+```
+sh: 1: mysql_config: not found
+    Traceback (most recent call last):
+      File "<string>", line 1, in <module>
+      File "/tmp/pip-install-GOmOTT/mysql-python/setup.py", line 17, in <module>
+        metadata, options = get_config()
+      File "setup_posix.py", line 43, in get_config
+        libs = mysql_config("libs_r")
+      File "setup_posix.py", line 25, in mysql_config
+        raise EnvironmentError("%s not found" % (mysql_config.path,))
+    EnvironmentError: mysql_config not found
+```
+
+则需要安装libmysqlclient-dev
+
+```
+sudo apt-get install libmysqlclient-dev
+```
+
+
+
+然后我们再安装SQLAlchemy：
+
+```
+pip install flask-sqlalchemy
+```
+
+这样后我们就可以用python来操作mysql 了。
+
+### 基本操作
+
+我们来个最简单的基本操作：
+
+```python
+# 文件名test.py
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'hardtoguessstring'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://user:password@localhost:3306/testdb'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+db = SQLAlchemy(app)
+class Role(db.Model):
+    __tablename__ = 'roles' # 数据库表名，如果不指定，则会生成默认的，最好指定
+    id = db.Column(db.Integer, nullable=False, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(16), nullable=False, server_default='', unique=True)
+    def __repr__(self):
+        return '<Role %r>' % self.name
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, nullable=False, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(32), nullable=False, unique=True, server_default='', index=True)
+    role_id = db.Column(db.Integer, nullable=False, server_default='0')
+    def __repr__(self):
+        return '<User %r,Role id %r>' %(self.username,self.role_id)
+```
+
+然后我们手动在数据库中创建一个testdb的数据库，再运行这个文件即可看到testdb中生成了roles，users表。
+
+#### 一、连接数据库
+
+```
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://user:password@host:port/dbname'
+```
+
+#### 二、创建所有表
+
+```
+python
+>>> from hello import db,Role,User
+>>> db.create_all()
+```
+
+#### 三、删除所有表
+
+```
+python
+>>> from hello import db,Role,User
+>>> db.drop_all()
+```
+
+#### 四、插入行
+
+```
+# 插入单行
+python
+>>> from hello import db,Role,User
+>>> db.session.add(Role(name='Admin'))
+>>> db.session.commit()
+>>> db.session.add(Role(name='Moderator'))
+>>> db.session.add(Role(name='User'))
+>>> db.session.commit()
+
+# 插入多行
+python
+>>> from hello import db,Role,User
+>>> db.session.add_all([User(username='john',role_id=1),User(username='susan',role_id=3),User(username='david',role_id=3)])
+>>> db.session.commit()
+```
+
+#### 五、更新行
+
+```
+python
+>>> from hello import db,Role,User
+>>> admin = Role.query.filter_by(name='Admin').first()
+>>> admin.name='Administrator'
+>>> db.session.commit()
+```
+
+#### 六、删除行
+
+```
+python hello.py shell
+>>> from hello import db,Role,User
+>>> mod = Role.query.filter_by(name='Moderator').first()
+>>> db.session.delete(mod)
+>>> db.session.commit()
+```
+
+#### 七、查询表
+
+- 查询表中全部数据
+
+  ```
+  # 注意，此处的查询结果完全取决于代码示例中的
+  # def __repr__(self)
+  # 这段函数，请各位同学注意
+  python
+  >>> from hello import db,Role,User
+  >>> Role.query.all()
+  [<Role u'Administrator'>, <Role u'User'>]
+  >>> User.query.all()
+  [<User u'john',Role id 1L>, <User u'susan',Role id 3L>, <User u'david',Role id 3L>]
+  ```
+
+- 按照一个条件过滤数据记录(where)
+
+  ```
+  python
+  >>> from hello import db,Role,User
+  >>> Role.query.filter_by(name='Administrator').first()
+  <Role u'Administrator'>
+  >>> User.query.filter_by(role_id=3).all()
+  [<User u'susan',Role id 3L>, <User u'david',Role id 3L>]
+  >>> User.query.filter_by(role_id=3).first()
+  <User u'susan',Role id 3L>
+  ```
+
+- 按照两个条件过滤数据记录(where and)
+
+  ```
+  python
+  >>> from hello import db,Role,User
+  >>> User.query.filter_by(role_id=3,username='susan').first()
+  <User u'susan',Role id 3L>
+  >>> User.query.filter_by(role_id=3,username='susan').all()
+  [<User u'susan',Role id 3L>]
+  ```
+
+- 聚合(count)
+
+  ```
+  python hello.py shell
+  >>> from hello import db,Role,User
+  >>> User.query.filter_by(role_id=3,username='susan').count()
+  1L
+  >>> User.query.filter_by(role_id=3).count()
+  2L
+  >>> User.query.count()
+  3L
+  ```
+
+- 求和(sum)
+
+  ```
+  python hello.py shell
+  >>> from hello import db,Role,User
+  >>> from sqlalchemy.sql import func
+  >>> User.query.with_entities(func.sum(User.id)).all()
+  [(Decimal('6'),)]
+  >>> User.query.with_entities(func.sum(User.role_id)).all()
+  [(Decimal('7'),)]
+  ```
+
+- 平均数(avg)
+
+  ```
+  python
+  >>> from hello import db,Role,User
+  >>> from sqlalchemy.sql import func
+  >>> User.query.with_entities(func.avg(User.role_id)).all()
+  [(Decimal('2.3333'),)]
+  >>> User.query.with_entities(func.avg(User.id)).all()
+  [(Decimal('2.0000'),)]
+  ```
+
+- 排序(order by)
+
+  ```
+  python
+  >>> from hello import db,Role,User
+  # 升序(asc)
+  >>> User.query.order_by(User.role_id).all()
+  [<User u'john',Role id 1L>, <User u'susan',Role id 3L>, <User u'david',Role id 3L>]
+  # 降序(desc)
+  >>> User.query.order_by(User.role_id.desc()).all()
+  [<User u'susan',Role id 3L>, <User u'david',Role id 3L>, <User u'john',Role id 1L>]
+  ```
+
+- 分组(group by)
+
+  ```
+  python hello.py shell
+  >>> from hello import db,Role,User
+  >>> User.query.group_by(User.role_id).all()
+  [<User u'john',Role id 1L>, <User u'susan',Role id 3L>]
+  ```
+
+- 限制(limit)
+
+  ```
+  python
+  >>> from hello import db,Role,User
+  >>> User.query.all()
+  [<User u'john',Role id 1L>, <User u'susan',Role id 3L>, <User u'david',Role id 3L>]
+  # limit 1
+  >>> User.query.limit(1).all()
+  [<User u'john',Role id 1L>]
+  # limit 2,1
+  >>> User.query.limit(1).offset(2).all()
+  [<User u'david',Role id 3L>]
+  >>> User.query.filter_by(role_id=3).all()
+  [<User u'susan',Role id 3L>, <User u'david',Role id 3L>]
+  # limit 1
+  >>> User.query.filter_by(role_id=3).limit(1).all()
+  [<User u'susan',Role id 3L>]
+  # limit 1,1
+  >>> User.query.filter_by(role_id=3).limit(1).offset(1).all()
+  [<User u'david',Role id 3L>]
+  ```
+
+
+
+### 集成到项目中
+
+实际情况中我们不可能在一个文件中写上n多个数据表类，肯定都是分开的，这样就有了Role.py、User.py这样的类出现，然而你发现创建他们需要db这个对象，而上面的代码中SQLAlchemy创建时候需要传入的初始化的app，这就矛盾了。
+
+事实是SQLAlchemy创建时候可以不传入app，初始化时候再传入app进行赋值初始化即可。
+
+所以正常步骤如下：
+
+- 1、首先在`foundation.py`中初始化一个`db = SQLAlchemy()`这样是为了整个项目中只有这一个数据库对象。
+
+- 2、在数据库表对象中引入这个db，集成`db.Model`，生成数据表对象。
+
+- 3、在初始化项目时候，引入这个db，然后初始化app，并创建数据库表。
+
+  ```
+  db.app = app
+  db.init_app(app)
+  db.create_all()
+  ```
+
+数据库的创建操作只需要执行一次即可，所以这里我们再使用另外的一个库来操作数据库的初始化，这里使用Flask-Script来进行一些简单的操作。
+
+Flask-Script 是一个 Flask 扩展,为 Flask 程序添加了一个命令行解析器。Flask-Script 自带了一组常用选项,而且还支持自定义命令。
+
+我们经常用Flask-Script来执行一些在flask之外的代码，比如开发时候，我需要创建一个测试的数据库，或者清空数据库，或者我可以根据实际情况来启动开发版还是正式版。
+
+我们来看一个简单的例子：
+
+```
+from flask_script import Manager
+from flask import Flask
+app = Flask(__name__)
+
+manager = Manager(app)
+
+@manager.command
+def createall():
+    db.create_all()
+    db.session.commit()
+```
+
+上面这个例子中，creatall这个函数被加了`@manager.command`语句，这样我即可以在python中直接运行该方法：
+
+```
+python app.py creatall
+```
+
+执行如上语句后，数据库中的表即可被创建，这样就不用每次我们在app初始化后去都去创建数据库表了。
+
+
+
+## 五、redis
+
+### 安装
+
+ubuntu下安装
+
+```
+sudo apt-get install redis
+```
+
+### 基本操作
+
+连接方式：
+
+- 严格连接模式：r=redis.StrictRedis(host="",port=)
+- 更Python化的连接模式：r=redis.Redis(host="",port=)
+- StrictRedis用于实现大部分官方的命令，并使用官方的语法和命令
+- Redis与StrictRedis的区别是：Redis是StrictRedis的子类，用于向前兼容旧版本的redis-py，并且这个连接方式是更加"python化"的
+- 连接池  
+  为了节省资源，减少多次连接损耗，连接池的作用相当于总揽多个客户端与服务端的连接，当新客户端需要连接时，只需要到连接池获取一个连接即可，实际上只是一个连接共享给多个客户端。
+
+如下我们使用连接池方式连接redis：
+
+```python
+import redis
+pool = redis.ConnectionPool(host='localhost', port=6379, db=0, decode_responses=True)
+r = redis.Redis(connection_pool=pool)
+r.set('a','3')
+print(r.get('a'))
+```
+
+```
+3
+```
+
+**默认情况下，设置的值或取得的值都为bytes类型,如果想改为str类型,需要在连接时添加上decode_responses=True**
+
+**增加**
+
+在Redis中设置值，默认不存在则创建，存在则修改  
+
+r.set('name', 'zhangsan')
+
+```
+参数：
+     set(name, value, ex=None, px=None, nx=False, xx=False)  
+     ex，过期时间（秒）  
+     px，过期时间（毫秒）  
+     nx，如果设置为True，则只有name不存在时，当前set操作才执行,同setnx(name, value)  
+     xx，如果设置为True，则只有name存在时，当前set操作才执行 
+```
+
+```python
+# 批量设置
+r.mset(a1='1',a2='2')
+#r.mset({'a1':'1','a2':'2'})
+
+# 批量获取  r.mget()
+print(r.mget('a1','a2'))
+```
+
+```
+['1', '2']
+```
+
+**查找获取**
+
+```python
+r.get('key_name')
+
+#根据字节获取子序列
+r.set("name","zhangsan")
+print(r.getrange("name",0,3))
+```
+
+```
+zhan
+```
+
+**修改**
+
+```python
+#修改字符串内容，从指定字符串索引开始向后替换，如果新值太长时，则向后添加
+r.set("name","zhangsan")
+r.setrange("name",1,"z")
+print(r.get("name")) 
+r.setrange("name",6,"zzzzzzz")
+print(r.get("name"))
+```
+
+```
+zzangsan
+zzangszzzzzzz
+```
+
+**删除**
+
+```
+delete(*names)
+根据删除redis中的任意数据类型（string、hash、list、set、有序set）
+```
+
+```python
+r.delete("gender")  # 删除key为gender的键值对
+```
+
+```
+1
+```
+
+**获取长度**
+
+```python
+#返回name对应值的字节长度（一个汉字3个字节）
+r.set("name","zhangsan")
+print(r.strlen("name"))
+```
+
+```
+8
+```
+
+**检查名字是否存在**
+
+```
+exists(name)
+检测redis的name是否存在，存在就是True，False 不存在
+```
+
+#### hash操作
+
+redis中的Hash 在内存中类似于一个name对应一个dic来存储 
+
+**新增/修改**
+
+hset('dic_name','key','value')
+
+如果存在该dic，则增加（key,value）, 不存在则创建，如果key在dic里面是存在的，就修改该key的值
+
+```python
+#name对应的hash中设置一个键值对（不存在，则创建，否则，修改）
+r.hset("dic_name","a1","aa")
+
+print(r.hget("dic_name","a1"))
+```
+
+```
+aa
+```
+
+**查找获取**
+
+```python
+#在name对应的hash中批量设置键值对,mapping:字典
+dic={"a1":"aa","b1":"bb"}
+r.hmset("dic_name",dic)
+
+# 获取指定dic，指定key的value
+print(r.hget("dic_name","b1"))#输出:bb
+
+# 获取dic全部的键值对
+print(r.hgetall("dic_name"))
+
+# 在name对应的hash中获取多个key的值
+li=["a1","b1"]
+print(r.hmget("dic_name",li))
+print(r.hmget("dic_name","a1","b1"))
+
+
+#hlen(name) 获取hash中键值对的个数
+print(r.hlen("dic_name"))
+
+#hkeys(name) 获取hash中所有的key的值
+print(r.hkeys("dic_name"))
+
+#hvals(name) 获取hash中所有的value的值
+print(r.hvals("dic_name"))
+```
+
+
+
+```python
+#检查name对应的hash是否存在当前传入的key
+print(r.hexists("dic_name","a1"))#输出:True
+```
+
+
+
+**删除**
+
+```python
+#删除指定name对应的key所在的键值对
+r.hdel("dic_name","a1")
+print(r.hgetall('dic_name'))
+
+r.hset('dic_name','a1','aa')
+print(r.hgetall('dic_name'))
+```
+
+#### List操作
+
+redis中的List在在内存中按照一个name对应一个List来存储
+
+```python
+# 在name对应的list中添加元素，每个新的元素都添加到列表的最左边，没有该list则新建
+r.lpush("list_name",2)
+r.lpush("list_name",3,4,5)#保存在列表中的顺序为5，4，3，2
+
+r.lpushx('list_name',6)  #在name对应的list中添加元素，只有name已经存在时，值添加到列表的最左边
+
+r.rpushx('list_name',7)  #在name对应的list中添加元素，只有name已经存在时，值添加到列表的最右边
+
+#rpush(name,values) 个新的元素都添加到列表的最右边
+
+print(r.lrange('list_name',0,-1)) #分片获取元素
+print(r.llen("list_name"))  # 获取list的长度
+```
+
+```
+['6', '5', '4', '3', '2', '7']
+6
+```
+
+ **在name对应的列表的某一个值前或后插入一个新值**
+
+```
+r.linsert("list_name","BEFORE","2","SS") #在列表内找到第一个元素2，在它前面插入SS
+参数：
+     name: redis的name
+     where: BEFORE（前）或AFTER（后）
+     refvalue: 列表内的值
+     value: 要插入的数据
+```
+
+```python
+r.linsert('list_name','BEFORE','2','ss')
+print(r.lrange('list_name',0,-1))
+
+
+r.lset('list_name', 0, 'test')
+print(r.lrange('list_name',0,-1))
+```
+
+```
+['6', '5', '4', '3', 'ss', '2', '7']
+['test', '5', '4', '3', 'ss', '2', '7']
+```
+
+**删除（指定值进行删除，返回值)**
+
+```python
+#移除列表的左侧第一个元素，返回值则是第一个元素
+print(r.lpop("list_name"))
+print(r.lrange('list_name',0,-1))
+```
+
+```
+test
+['5', '4', '3', 'ss', '2', '7']
+```
+
+**删除（指定值进行删除，删除不返回)**
+
+```
+r.lrem(name, value, num)  
+
+在name对应的list中删除指定的值  
+
+参数：
+name，redis的name
+value，要删除的值
+num， num=0，删除列表中所有的指定值；
+num=2,从前到后，删除2个； num=1,从前到后，删除左边第1个
+num=-2,从后向前，删除2个
+```
+
+**删除索引之外的值**
+
+```
+ltrim(name, start, end)
+
+在name对应的列表中移除没有在start-end索引之间的值
+参数：
+name，redis的name
+start，索引的起始位置
+end，索引结束位置
+
+```
+
+**取值（根据索引号取值）**
+
+```
+lindex(name, index)
+在name对应的列表中根据索引获取列表元素
+
+```
+
+**移动 从一个列表取出最右边的元素，同时将其添加至另一个列表的最左边**
+
+```
+rpoplpush(src, dst)
+
+参数：
+src，要取数据的列表的name
+dst，要添加数据的列表的name
+
+```
+
+**移动 元素从一个列表移动到另外一个列表 可以设置超时**
+
+```
+brpoplpush(src, dst, timeout=0)
+从一个列表的右侧移除一个元素并将其添加到另一个列表的左侧
+参数：
+src，取出并要移除元素的列表对应的name
+dst，要插入元素的列表对应的name
+timeout，当src对应的列表中没有数据时，阻塞等待其有数据的超时时间（秒），0 表示永远阻塞
+
+```
+
+**一次移除多个列表**
+
+```
+blpop(keys, timeout)
+将多个列表排列，按照从左到右去pop对应列表的元素
+参数：
+keys，redis的name的集合
+timeout，超时时间，当元素所有列表的元素获取完之后，阻塞等待列表内有数据的时间（秒）, 0 表示永远阻塞
+更多：
+r.brpop(keys, timeout) 同blpop，将多个列表排列,按照从右像左去移除各个列表内的元素
+
+```
+
+
+
+```python
+r.lpush("list10", 3, 4, 5)
+r.lpush("list11", 3, 4, 5)
+
+while r.llen('list11') > 0:
+    r.blpop(["list10", "list11"], timeout=2)
+    print(r.lrange("list10", 0, -1), r.lrange("list11", 0, -1))
+
+```
+
+```
+['4', '3'] ['5', '4', '3']
+['3'] ['5', '4', '3']
+[] ['5', '4', '3']
+[] ['4', '3']
+[] ['3']
+[] []
+
+```
+
+**自定义增量迭代**
+
+由于redis类库中没有提供对列表元素的增量迭代，如果想要循环name对应的列表的所有元素，那么就需要：
+
+- 获取name对应的所有列表
+- 循环列表
+
+但是，如果列表非常大，那么就有可能在第一步时就将程序的内容撑爆，所有有必要自定义一个增量迭代的功能：
+
+```python
+def list_iter(name):
+    """
+    自定义redis列表增量迭代
+    :param name: redis中的name，即：迭代name对应的列表
+    :return: yield 返回 列表元素
+    """
+    list_count = r.llen(name)
+    for index in range(list_count):
+        yield r.lindex(name, index)
+
+# 使用
+for item in list_iter('list2'): # 遍历这个列表
+    print(item)
+
+```
+
+#### Set操作
+
+Set集合就是不允许重复的列表
+
+- 新增  
+  sadd(name,values)  
+  name对应的集合中添加元素  
+
+- scard(name) 获取元素个数 类似于len
+
+- 获取集合中所有的成员
+  - smembers(name)  获取集合中所有的成员
+  - sscan(name, cursor=0, match=None, count=None)   获取集合中所有的成员--元组形式  
+  - sscan_iter(name, match=None, count=None) 获取集合中所有的成员--迭代器的方式
+
+- 移动  
+  smove(src, dst, value)  
+  将某个成员从一个集合中移动到另外一个集合  
+- 删除--随机删除并且返回被删除值  
+  spop(name)  
+  从集合移除一个成员，并将其返回,说明一下，集合是无序的，所有是随机删除的  
+
+- 删除--指定值删除  
+  srem(name, values)  
+  在name对应的集合中删除某些值  
+
+```python
+r.sadd('set_name','aa')
+r.sadd('set_name','bb')
+r.sadd('set_name','cc')
+
+print(r.smembers('set_name'))
+print(r.scard('set_name'))
+
+print(r.sscan('set_name'))
+
+# 迭代器方式，于增量迭代分批获取元素，避免内存消耗太大
+for i in r.sscan_iter('set_name'):
+    print(i)
+
+r.spop('set_name')
+print('s.spop=>' , r.smembers('set_name'))
+
+r.srem('set_name','cc')
+print('s.srem=>' , r.smembers('set_name'))
+
+
+r.sadd('set1',22,20,40)
+r.sadd("set2", 11, 22, 33)
+r.smove('set1','set2',40)
+
+print('set1=',r.smembers('set1'))
+print('set2=',r.smembers('set2'))
+
+```
+
+```
+{'aa', 'bb', 'cc'}
+3
+(0, ['bb', 'cc', 'aa'])
+bb
+cc
+aa
+s.spop=> {'aa', 'bb'}
+s.srem=> {'aa', 'bb'}
+set1= {'20', '22'}
+set2= {'33', '40', '22', '11'}
+
+```
+
+**差集**
+
+```
+sdiff(keys, *args)
+在第一个name对应的集合中且不在其他name对应的集合的元素集合
+
+```
+
+**差集--差集存在一个新的集合中**
+
+```
+sdiffstore(dest, keys, *args)
+获取第一个name对应的集合中且不在其他name对应的集合，再将其新加入到dest对应的集合中
+
+```
+
+```python
+r.sadd('set1',22,20,40)
+r.sadd("set2", 11, 22, 33)
+print(r.smembers("set1"))   # 获取集合中所有的成员
+print(r.smembers("set2"))
+print(r.sdiff("set1", "set2"))   # 在集合set1但是不在集合set2中
+print(r.sdiff("set2", "set1"))   # 在集合set2但是不在集合set1中
+
+```
+
+```
+{'40', '20', '22'}
+{'33', '22', '11'}
+{'40', '20'}
+{'33', '11'}
+
+```
+
+
+
+```python
+r.sdiffstore("set3", "set1", "set2")    # 在集合set1但是不在集合set2中
+print(r.smembers("set3"))   # 获取集合3中所有的成员
+
+```
+
+```
+{'40', '20'}
+
+```
+
+**交集**
+
+```
+sinter(keys, *args)
+获取多一个name对应集合的交集
+
+```
+
+**交集--交集存在一个新的集合中**
+
+```
+sinterstore(dest, keys, *args)
+获取多一个name对应集合的并集，再将其加入到dest对应的集合中
+
+```
+
+```python
+print(r.sinter("set1", "set2")) # 取2个集合的交集
+
+print(r.sinterstore("set3", "set1", "set2")) # 取2个集合的交集
+print(r.smembers("set3"))
+```
+
+```
+{'22'}
+1
+{'22'}
+
+```
+
+**并集**
+
+```
+sunion(keys, *args)
+获取多个name对应的集合的并集
+
+```
+
+**并集--并集存在一个新的集合**
+
+```
+sunionstore(dest,keys, *args)
+获取多一个name对应的集合的并集，并将结果保存到dest对应的集合中
+
+```
+
+
+
+```python
+print(r.sunion("set1", "set2")) # 取2个集合的并集
+
+print(r.sunionstore("set3", "set1", "set2")) # 取2个集合的并集
+print(r.smembers("set3"))
+```
+
+```
+{'11', '40', '33', '20', '22'}
+5
+{'11', '40', '33', '20', '22'}
+
+```
+
+**判断是否是集合的成员 类似in**
+
+```
+sismember(name, value)
+检查value是否是name对应的集合的成员，结果为True和False
+
+```
+
+```python
+print(r.sismember("set1", 40))
+```
+
+```
+True
+
+```
+
