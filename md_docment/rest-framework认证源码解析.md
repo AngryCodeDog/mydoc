@@ -246,7 +246,7 @@ class MyViewset(viewsets.GenericViewSet):
 >
 > 2. view.diapatch()
 >
-> 3. 重新封装request后返回
+> 3. initialize_request()重新封装request后返回（把认证类和权限类进行赋值）
 >
 > 4. 验证用户(根据view对象的authentication_classes属性来验证) 
 >
